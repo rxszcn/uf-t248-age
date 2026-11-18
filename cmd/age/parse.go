@@ -187,9 +187,9 @@ func parseIdentitiesFile(name string) ([]age.Identity, error) {
 	switch {
 	// An age encrypted file, plain or armored.
 	case bytes.HasPrefix(p, []byte("age-encryption")) ||
-		bytes.HasPrefix(trimmed, []byte(armor.Header)):
+		armor.LooksArmored(p):
 		var r io.Reader = b
-		if bytes.HasPrefix(trimmed, []byte(armor.Header)) {
+		if armor.LooksArmored(p) {
 			r = armor.NewReader(r)
 		}
 		const privateKeySizeLimit = 1 << 24 // 16 MiB

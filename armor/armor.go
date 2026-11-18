@@ -25,6 +25,41 @@ const (
 	Footer = "-----END AGE ENCRYPTED FILE-----"
 )
 
+// maxWhitespace bounds the amount of whitespace that is tolerated before and
+// around the armor header line. It is shared by LooksArmored and armoredReader
+// so that anything the detection layer accepts as armored is also accepted by
+// the reader.
+const maxWhitespace = 1024
+
+// LooksArmored reports whether data starts with an armored age file. It is the
+// single source of truth for the automatic armor detection used by the age
+// command line and the inspect package: any input it reports as armored must be
+// accepted by NewReader.
+//
+// Up to maxWhitespace leading whitespace-only lines are skipped, then the first
+// non-empty line is trimmed of leading and trailing whitespace and compared
+// exactly to Header. A header line whose marker contains interior whitespace,
+// or which is followed by other characters, is not recognized.
+func LooksArmored(data []byte) bool {
+	limit := maxWhitespace + len(Header)
+	if len(data) > limit {
+		data = data[:limit]
+	}
+	for len(data) > 0 {
+		line, rest, found := bytes.Cut(data, []byte("\n"))
+		line = bytes.TrimSuffix(line, []byte("\r"))
+		if len(bytes.TrimSpace(line)) == 0 {
+			if !found {
+				return false
+			}
+			data = rest
+			continue
+		}
+		return string(bytes.TrimSpace(line)) == Header
+	}
+	return false
+}
+
 type armoredWriter struct {
 	started, closed bool
 	encoder         *format.WrappedBase64Encoder
@@ -113,7 +148,6 @@ func (r *armoredReader) Read(p []byte) (int, error) {
 		return line, nil
 	}
 
-	const maxWhitespace = 1024
 	drainTrailing := func() error {
 		buf, err := io.ReadAll(io.LimitReader(r.r, maxWhitespace))
 		if err != nil {
@@ -134,7 +168,7 @@ func (r *armoredReader) Read(p []byte) (int, error) {
 		if err != nil {
 			return 0, r.setErr(err)
 		}
-		// Ignore leading whitespace.
+		// Ignore leading whitespace-only lines.
 		if len(bytes.TrimSpace(line)) == 0 {
 			removedWhitespace += len(line) + 1
 			if removedWhitespace > maxWhitespace {
@@ -142,7 +176,16 @@ func (r *armoredReader) Read(p []byte) (int, error) {
 			}
 			continue
 		}
-		if string(line) != Header {
+		// Tolerate leading indentation and trailing whitespace on the header
+		// line itself, matching what LooksArmored accepts. The trimmed bytes
+		// count against the same leading whitespace budget, and the marker is
+		// still compared exactly, so interior whitespace stays rejected.
+		trimmed := bytes.TrimSpace(line)
+		removedWhitespace += len(line) - len(trimmed)
+		if removedWhitespace > maxWhitespace {
+			return 0, r.setErr(errors.New("too much leading whitespace"))
+		}
+		if string(trimmed) != Header {
 			return 0, r.setErr(fmt.Errorf("invalid first line: %q", line))
 		}
 		r.started = true

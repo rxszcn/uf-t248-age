@@ -1,0 +1,48 @@
+# Regression for the armor detection/reader tolerance mismatch: an armored
+# file whose header line is indented or carries trailing whitespace must be
+# both auto-detected as armored and decrypted. Leading blank lines already
+# worked and are kept as the control case.
+
+# Indented header line (leading spaces on the BEGIN line itself).
+age -d -i key.txt indented_header.age
+cmp stdout plaintext
+
+# Header line with trailing whitespace before its newline.
+age -d -i key.txt trailing_ws_header.age
+cmp stdout plaintext
+
+# Control case: full blank (whitespace-only) lines before the header.
+age -d -i key.txt leading_blank_lines.age
+cmp stdout plaintext
+
+-- key.txt --
+# created: 2025-12-23T22:21:12+01:00
+# public key: age15w9kgvgggmfra4sz6vk39kz4mveuq2sfv5vmcu090y0k2sluepaqv7z2fv
+AGE-SECRET-KEY-18J6FVYJE2AFSJ0RPH6M29GMUU62UVRSCNWUJZSGETH6R38Q5AZ3S2DHAZ9
+-- plaintext --
+gateway regression plaintext
+-- indented_header.age --
+   -----BEGIN AGE ENCRYPTED FILE-----
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvT0ZXYWJ3MkpDTzk3WWlI
+MHhOTDN0Z2toRUpzdVYwRHp2SFdwbEp2RndFCjcvRE5jV0tqSis3c1FRbDRiZ1dk
+czhxUWNGMDRlZnpLUkM4UEh4ZDE0VGsKLS0tIFp5M3B3Z0E5SDRSTTY5aXpleVYy
+UlZ6NGYzeCtYd2l1Z2QveS94K2FPT0EKqrEK87QMV/Fif/dqqkOfxQk+dSlFXCN8
+C3bVeVhrE6awhz7vY6ga6eBJ05L0tUD08pJPHeGatIIcOiAJug==
+-----END AGE ENCRYPTED FILE-----
+-- trailing_ws_header.age --
+-----BEGIN AGE ENCRYPTED FILE-----   
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvT0ZXYWJ3MkpDTzk3WWlI
+MHhOTDN0Z2toRUpzdVYwRHp2SFdwbEp2RndFCjcvRE5jV0tqSis3c1FRbDRiZ1dk
+czhxUWNGMDRlZnpLUkM4UEh4ZDE0VGsKLS0tIFp5M3B3Z0E5SDRSTTY5aXpleVYy
+UlZ6NGYzeCtYd2l1Z2QveS94K2FPT0EKqrEK87QMV/Fif/dqqkOfxQk+dSlFXCN8
+C3bVeVhrE6awhz7vY6ga6eBJ05L0tUD08pJPHeGatIIcOiAJug==
+-----END AGE ENCRYPTED FILE-----
+-- leading_blank_lines.age --
+
+-----BEGIN AGE ENCRYPTED FILE-----
+YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvT0ZXYWJ3MkpDTzk3WWlI
+MHhOTDN0Z2toRUpzdVYwRHp2SFdwbEp2RndFCjcvRE5jV0tqSis3c1FRbDRiZ1dk
+czhxUWNGMDRlZnpLUkM4UEh4ZDE0VGsKLS0tIFp5M3B3Z0E5SDRSTTY5aXpleVYy
+UlZ6NGYzeCtYd2l1Z2QveS94K2FPT0EKqrEK87QMV/Fif/dqqkOfxQk+dSlFXCN8
+C3bVeVhrE6awhz7vY6ga6eBJ05L0tUD08pJPHeGatIIcOiAJug==
+-----END AGE ENCRYPTED FILE-----

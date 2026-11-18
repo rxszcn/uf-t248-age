@@ -504,7 +504,7 @@ func decrypt(identities []age.Identity, in io.Reader, out io.Writer) {
 
 	const maxWhitespace = 1024
 	start, _ := rr.Peek(maxWhitespace + len(armor.Header))
-	if strings.HasPrefix(string(bytes.TrimSpace(start)), armor.Header) {
+	if armor.LooksArmored(start) {
 		in = armor.NewReader(rr)
 	} else {
 		in = rr

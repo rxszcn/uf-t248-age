@@ -6,6 +6,7 @@ import (
 	"io"
 	"testing"
 
+	"filippo.io/age/armor"
 	"filippo.io/age/internal/format"
 	"filippo.io/age/internal/stream"
 )
@@ -117,6 +118,59 @@ func TestInspectReadAfterEOF(t *testing.T) {
 	// bytes would show up in the payload size.
 	if md.Sizes.MinPayload != 0 {
 		t.Errorf("MinPayload = %d, want 0", md.Sizes.MinPayload)
+	}
+}
+
+// buildArmoredFile wraps buildFile's binary age output in strict armor.
+func buildArmoredFile(t *testing.T, stanzaTypes ...string) []byte {
+	t.Helper()
+	plain := buildFile(t, stanzaTypes...)
+	buf := &bytes.Buffer{}
+	w := armor.NewWriter(buf)
+	if _, err := w.Write(plain); err != nil {
+		t.Fatalf("armor.Writer.Write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("armor.Writer.Close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// TestInspectArmoredHeaderTolerance checks that the inspect detection layer
+// and the armor reader agree: a header line with indentation or trailing
+// whitespace, and leading blank (whitespace-only) lines, are all detected as
+// armored and parsed successfully, mirroring the age command-line contract.
+func TestInspectArmoredHeaderTolerance(t *testing.T) {
+	base := buildArmoredFile(t, "X25519")
+	withTrailingWS := bytes.Replace(base,
+		[]byte("-----\n"), []byte("-----   \n"), 1)
+
+	tests := []struct {
+		name string
+		data []byte
+	}{
+		{"strict header", base},
+		{"indented header", append([]byte("   "), base...)},
+		{"trailing whitespace header", withTrailingWS},
+		{"leading blank lines", append([]byte("\n\n  \n"), base...)},
+		{"blank line before indented", append([]byte("\n \n  "), base...)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			md, err := Inspect(bytes.NewReader(tt.data), int64(len(tt.data)))
+			if err != nil {
+				t.Fatalf("Inspect: %v", err)
+			}
+			if !md.Armor {
+				t.Error("Metadata.Armor = false, want true")
+			}
+			if len(md.StanzaTypes) != 1 || md.StanzaTypes[0] != "X25519" {
+				t.Errorf("StanzaTypes = %v, want [X25519]", md.StanzaTypes)
+			}
+			if md.Postquantum != "no" {
+				t.Errorf("Postquantum = %q, want no", md.Postquantum)
+			}
+		})
 	}
 }
 
